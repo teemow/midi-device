@@ -1,6 +1,9 @@
 package device
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // ccByName indexes a device type's CC controls by name -> CC number for terse
 // assertions.
@@ -199,5 +202,108 @@ func TestDeviceTypeFromProbeMacroCollapse(t *testing.T) {
 	}
 	if len(report.MacroControls) != 1 || report.MacroControls[0] != "macro" {
 		t.Fatalf("macro controls = %v, want [macro]", report.MacroControls)
+	}
+}
+
+// probeIDVectors pins ProbeID for a handful of components. The auv3-probe app
+// mirrors ProbeID in AudioUnitDetails.fileID and tests the same vectors, so a
+// change here must land there too.
+var probeIDVectors = []struct {
+	component ProbeComponent
+	name      string
+	want      string
+}{
+	{ProbeComponent{Type: "aufx", Subtype: "dely", Manufacturer: "acme"}, "Delay", "aufx-dely-acme"},
+	{ProbeComponent{Type: "aumu", Subtype: "Ab12", Manufacturer: "XyZw"}, "Synth", "aumu-_ab12-_xy_zw"},
+	{ProbeComponent{Type: "aumi", Subtype: "Ab12", Manufacturer: "XyZw"}, "Synth MIDI", "aumi-_ab12-_xy_zw"},
+	{ProbeComponent{Type: "aumu", Subtype: "AB12", Manufacturer: "XyZw"}, "Synth (old)", "aumu-_a_b12-_xy_zw"},
+	{ProbeComponent{Type: "aumi", Subtype: "a b_", Manufacturer: "Mn-1"}, "Odd", "aumi-a__20b__5f-_mn__2d1"},
+	{ProbeComponent{Type: "aumf", Subtype: "", Manufacturer: "acme"}, "No Subtype", "aumf--acme"},
+	// No component type: the earlier subtype/name id.
+	{ProbeComponent{Subtype: "Dist"}, "Distortion", "dist"},
+	{ProbeComponent{}, "My Plugin", "my_plugin"},
+	{ProbeComponent{}, "", ""},
+}
+
+func TestProbeIDVectors(t *testing.T) {
+	for _, v := range probeIDVectors {
+		if got := ProbeID(ProbeDump{Component: v.component, Name: v.name}); got != v.want {
+			t.Errorf("ProbeID(%+v, %q) = %q, want %q", v.component, v.name, got, v.want)
+		}
+	}
+}
+
+// TestProbeIDSharedSubtype covers units that share a subtype: they must get
+// different ids, even where letter case is ignored, so neither staged dump
+// overwrites the other.
+func TestProbeIDSharedSubtype(t *testing.T) {
+	cases := map[string][2]ProbeComponent{
+		"type differs": {
+			{Type: "aumu", Subtype: "Ab12", Manufacturer: "XyZw"},
+			{Type: "aumi", Subtype: "Ab12", Manufacturer: "XyZw"},
+		},
+		"manufacturer differs": {
+			{Type: "aufx", Subtype: "dely", Manufacturer: "acme"},
+			{Type: "aufx", Subtype: "dely", Manufacturer: "Acme"},
+		},
+		"subtype case differs": {
+			{Type: "aumu", Subtype: "Ab12", Manufacturer: "XyZw"},
+			{Type: "aumu", Subtype: "AB12", Manufacturer: "XyZw"},
+		},
+	}
+	for name, pair := range cases {
+		a := ProbeID(ProbeDump{Component: pair[0], Name: "Same Name"})
+		b := ProbeID(ProbeDump{Component: pair[1], Name: "Same Name"})
+		if strings.EqualFold(a, b) {
+			t.Errorf("%s: ids %q and %q collide", name, a, b)
+		}
+	}
+}
+
+// TestComponentIDInjective encodes every component built from a small
+// alphabet (letters of both cases, a digit, and the bytes the encoding itself
+// uses) and checks that no two distinct components share an id, compared
+// without case, and that every id is a valid device-type id shape.
+func TestComponentIDInjective(t *testing.T) {
+	alphabet := []string{"a", "A", "f", "F", "2", "_", "-", " "}
+	var codes []string
+	codes = append(codes, "")
+	for _, x := range alphabet {
+		codes = append(codes, x)
+		for _, y := range alphabet {
+			codes = append(codes, x+y)
+		}
+	}
+	seen := make(map[string]ProbeComponent, len(codes)*len(codes)*4)
+	for _, typ := range []string{"aumu", "aumi"} {
+		for _, sub := range codes {
+			for _, mfr := range codes {
+				c := ProbeComponent{Type: typ, Subtype: sub, Manufacturer: mfr}
+				id := ComponentID(c)
+				if !idPattern.MatchString(id) {
+					t.Fatalf("ComponentID(%+v) = %q, not a valid device-type id", c, id)
+				}
+				key := strings.ToLower(id)
+				if prev, ok := seen[key]; ok {
+					t.Fatalf("ComponentID(%+v) = ComponentID(%+v) = %q", c, prev, id)
+				}
+				seen[key] = c
+			}
+		}
+	}
+}
+
+func TestDeviceTypeFromProbeUsesComponentID(t *testing.T) {
+	dump := ProbeDump{
+		Component:  ProbeComponent{Type: "aumu", Subtype: "Ab12", Manufacturer: "XyZw"},
+		Name:       "Synth",
+		Parameters: []ProbeParam{{Address: 1, Identifier: "cutoff", Writable: true}},
+	}
+	def, _, err := DeviceTypeFromProbe(dump, ProbeOptions{})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	if def.ID != "aumu-_ab12-_xy_zw" {
+		t.Fatalf("device-type id = %q, want aumu-_ab12-_xy_zw", def.ID)
 	}
 }

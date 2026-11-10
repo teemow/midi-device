@@ -130,12 +130,69 @@ type ProbeDump struct {
 	ComponentIcon []byte `json:"componentIcon,omitempty"`
 }
 
-// ProbeID derives the sanitized device-type/file id for a dump (from the
-// component subtype, falling back to the name). The off-daemon receiver names
-// staged dumps <ProbeID>.json so import_auv3_probe and DeviceTypeFromProbe
-// agree on the id.
+// ProbeID derives the device-type/file id for a dump. The off-daemon receiver
+// names staged dumps <ProbeID>.json so import_auv3_probe and
+// DeviceTypeFromProbe agree on the id.
+//
+// A dump that carries a component type is keyed by its whole component,
+// ComponentID(dump.Component), because an audio unit is identified by its
+// type, subtype and manufacturer together: units of different type or
+// manufacturer may share a subtype, and one subtype can be registered twice in
+// different letter case. A dump without a component type (hand-made, or older
+// than the component field) keeps the earlier id, the sanitized subtype or
+// name. The two forms never meet: ComponentID always holds exactly two "-",
+// the sanitized form none.
+//
+// The auv3-probe app mirrors this in AudioUnitDetails.fileID; the two must
+// change together.
 func ProbeID(dump ProbeDump) string {
+	if dump.Component.Type != "" {
+		return ComponentID(dump.Component)
+	}
 	return sanitizeName(FirstNonEmpty(dump.Component.Subtype, dump.Name))
+}
+
+// ComponentID renders a component's type, subtype and manufacturer as one
+// lowercase id, "<type>-<subtype>-<manufacturer>", that is distinct for every
+// distinct component, even where letter case is ignored (a case-insensitive
+// filesystem, the lowercase device-type id). Each code is written byte by byte:
+//
+//	a-z, 0-9    kept as is
+//	A-Z         "_" and the lowercase letter        ("Ab1" -> "_ab1")
+//	other byte  "__" and two lowercase hex digits   ("a b" -> "a__20b")
+//
+// No code's encoding contains "-", so the separators split the id
+// unambiguously, and inside a code "_" is always followed by a letter (a capital)
+// or by "_" (an escaped byte), so each code decodes to exactly one string. The
+// id matches the device-type id pattern whenever the type starts with a
+// lowercase letter or digit, as every Apple-defined component type does.
+func ComponentID(c ProbeComponent) string {
+	var b strings.Builder
+	writeComponentCode(&b, c.Type)
+	b.WriteByte('-')
+	writeComponentCode(&b, c.Subtype)
+	b.WriteByte('-')
+	writeComponentCode(&b, c.Manufacturer)
+	return b.String()
+}
+
+// writeComponentCode writes one code of ComponentID's encoding to b.
+func writeComponentCode(b *strings.Builder, code string) {
+	const hex = "0123456789abcdef"
+	for i := 0; i < len(code); i++ {
+		c := code[i]
+		switch {
+		case (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'):
+			b.WriteByte(c)
+		case c >= 'A' && c <= 'Z':
+			b.WriteByte('_')
+			b.WriteByte(c + ('a' - 'A'))
+		default:
+			b.WriteString("__")
+			b.WriteByte(hex[c>>4])
+			b.WriteByte(hex[c&0x0f])
+		}
+	}
 }
 
 // label returns the most human-friendly identifier for a parameter, preferring
@@ -157,8 +214,7 @@ func (p ProbeParam) label() string {
 // (CC convention starting at 30, capping at 127, enum for <=8 valueStrings,
 // preset enum up to one PC bank).
 type ProbeOptions struct {
-	// ID overrides the derived device-type id (otherwise from Component.Subtype
-	// or Name, sanitized).
+	// ID overrides the derived device-type id (otherwise ProbeID of the dump).
 	ID string
 	// Name overrides the derived device-type name (otherwise the dump Name).
 	Name string
