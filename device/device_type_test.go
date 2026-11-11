@@ -1,6 +1,9 @@
 package device
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestDefinitionValidateID(t *testing.T) {
 	good := []string{"md-200", "eq2", "fabfilter_pro_q", "x32", "a"}
@@ -186,5 +189,63 @@ func TestRegistryAddDefinition(t *testing.T) {
 	}
 	if _, ok := r.Get("baddev"); ok {
 		t.Fatal("invalid definition should not have been inserted")
+	}
+}
+
+// TestBundledBattalion checks the shipped Battalion type against the plugin's
+// MIDI layout, which is fixed by channel: the voices on channel 1, one voice a
+// channel played at a pitch on 2 to 9, the sequencer and mixer on 10, presets
+// and randomisers on 11.
+func TestBundledBattalion(t *testing.T) {
+	reg, err := LoadBundled()
+	if err != nil {
+		t.Fatalf("load bundled: %v", err)
+	}
+	d, ok := reg.Get("battalion")
+	if !ok {
+		t.Fatal("no bundled definition \"battalion\"")
+	}
+	if d.Transport != "auv3midi" {
+		t.Errorf("transport = %q, want auv3midi", d.Transport)
+	}
+	byName := map[string]Control{}
+	for _, c := range d.Controls {
+		if c.Type != ControlNoteOn {
+			t.Errorf("%s is a %s: the plugin has no controller map, every control is a note", c.Name, c.Type)
+		}
+		if c.Channel == nil {
+			t.Errorf("%s has no channel of its own, and the plugin's layout is by channel", c.Name)
+		}
+		byName[c.Name] = c
+	}
+	fixed := []struct {
+		name          string
+		note, channel int
+	}{
+		{"voice_1", 36, 1}, {"voice_8", 43, 1},
+		{"sequencer_toggle", 0, 10}, {"sequencer_play", 1, 10}, {"sequencer_stop", 2, 10},
+		{"mute_1", 12, 10}, {"mute_8", 19, 10}, {"solo_1", 24, 10}, {"choke_8", 67, 10},
+		{"preset_previous", 0, 11}, {"preset_next", 1, 11}, {"preset_random", 2, 11},
+		{"randomize_all", 3, 11}, {"performance_commit", 14, 11}, {"randomize_voice_8", 31, 11},
+	}
+	for _, f := range fixed {
+		c, ok := byName[f.name]
+		switch {
+		case !ok:
+			t.Errorf("no control %s", f.name)
+		case c.CC == nil || *c.CC != f.note || *c.Channel != f.channel:
+			t.Errorf("%s = note %v on channel %d, want note %d on channel %d", f.name, c.CC, *c.Channel, f.note, f.channel)
+		}
+	}
+	// A voice played at a pitch takes its note at the call, on the voice's
+	// channel.
+	for v := 1; v <= 8; v++ {
+		c, ok := byName[fmt.Sprintf("play_voice_%d", v)]
+		if !ok || !c.Parametric || *c.Channel != v+1 {
+			t.Errorf("play_voice_%d = %+v, want a parametric note on channel %d", v, c, v+1)
+		}
+	}
+	if len(d.Controls) != 58 {
+		t.Errorf("%d controls, want 58", len(d.Controls))
 	}
 }

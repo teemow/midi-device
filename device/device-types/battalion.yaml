@@ -2,32 +2,367 @@ id: battalion
 name: Unfiltered Audio Battalion (AUv3)
 manufacturer: Unfiltered Audio
 description: >
-  Example AUv3 plugin definition hosted in AUM. AUv3 plugin parameters have NO
-  fixed CC numbers — a parameter only responds to a CC if you map it inside AUM
-  (or the plugin's MIDI-learn). The CC numbers below are therefore a convention
-  this server OWNS; you mirror them once into AUM per plugin instance (the
-  authoring tools can emit an AUM mapping cheat-sheet). Bound to the iPad's
-  BLE-MIDI endpoint on its own MIDI channel.
-  Product reference: https://www.unfilteredaudio.com/products/battalion
-transport: blemidi
+  Battalion's own MIDI layout: a drum machine of eight voices that listens on
+  fixed channels. Channel 1 triggers the voices (C to G of any octave),
+  channels 2 to 9 play one voice each chromatically (note 60 is the voice's own
+  pitch), channel 10 runs its sequencer and mixer, channel 11 its presets and
+  randomisers. Nothing in the plugin remaps this, so every control here
+  carries its own channel and the device's channel is not used. A control's
+  value is the note's velocity; the triggers need no note-off. Checked on an
+  iPad with version 1.2.0: the voices, the chromatic channels 2 and 3, the
+  sequencer's toggle, play and stop, a voice's mute and the preset steps; the
+  rest is from the manual (pp. 76-78). The plugin has no CC map: its
+  parameters (3225 of them) move only through mappings the host makes, and a
+  session authored or imported for it yields those as controls of their own.
+  Manual: https://files.plugin-alliance.com/products/unfiltered_audio_battalion/unfiltered_audio_battalion_manual.pdf
+transport: auv3midi
 settle_ms: 0
 controls:
-  - name: preset
-    description: Plugin preset (if mapped to Program Change in AUM)
-    type: program_change
-    value: { type: range, min: 0, max: 127 }
-  - name: drive
-    description: Drive amount (convention CC)
-    type: cc
+  - name: voice_1
+    description: "Trigger voice 1 at its own pitch (channel 1, note 36; the same pad repeats in every octave)"
+    type: note_on
+    cc: 36
+    channel: 1
+    value: { type: range, min: 1, max: 127 }
+  - name: voice_2
+    description: "Trigger voice 2 at its own pitch (channel 1, note 37; the same pad repeats in every octave)"
+    type: note_on
+    cc: 37
+    channel: 1
+    value: { type: range, min: 1, max: 127 }
+  - name: voice_3
+    description: "Trigger voice 3 at its own pitch (channel 1, note 38; the same pad repeats in every octave)"
+    type: note_on
+    cc: 38
+    channel: 1
+    value: { type: range, min: 1, max: 127 }
+  - name: voice_4
+    description: "Trigger voice 4 at its own pitch (channel 1, note 39; the same pad repeats in every octave)"
+    type: note_on
+    cc: 39
+    channel: 1
+    value: { type: range, min: 1, max: 127 }
+  - name: voice_5
+    description: "Trigger voice 5 at its own pitch (channel 1, note 40; the same pad repeats in every octave)"
+    type: note_on
+    cc: 40
+    channel: 1
+    value: { type: range, min: 1, max: 127 }
+  - name: voice_6
+    description: "Trigger voice 6 at its own pitch (channel 1, note 41; the same pad repeats in every octave)"
+    type: note_on
+    cc: 41
+    channel: 1
+    value: { type: range, min: 1, max: 127 }
+  - name: voice_7
+    description: "Trigger voice 7 at its own pitch (channel 1, note 42; the same pad repeats in every octave)"
+    type: note_on
+    cc: 42
+    channel: 1
+    value: { type: range, min: 1, max: 127 }
+  - name: voice_8
+    description: "Trigger voice 8 at its own pitch (channel 1, note 43; the same pad repeats in every octave)"
+    type: note_on
+    cc: 43
+    channel: 1
+    value: { type: range, min: 1, max: 127 }
+  - name: play_voice_1
+    description: "Play voice 1 at a pitch (channel 2): give the note number, 60 is the voice's own pitch"
+    type: note_on
+    parametric: true
+    channel: 2
+    value: { type: range, min: 1, max: 127 }
+  - name: play_voice_2
+    description: "Play voice 2 at a pitch (channel 3): give the note number, 60 is the voice's own pitch"
+    type: note_on
+    parametric: true
+    channel: 3
+    value: { type: range, min: 1, max: 127 }
+  - name: play_voice_3
+    description: "Play voice 3 at a pitch (channel 4): give the note number, 60 is the voice's own pitch"
+    type: note_on
+    parametric: true
+    channel: 4
+    value: { type: range, min: 1, max: 127 }
+  - name: play_voice_4
+    description: "Play voice 4 at a pitch (channel 5): give the note number, 60 is the voice's own pitch"
+    type: note_on
+    parametric: true
+    channel: 5
+    value: { type: range, min: 1, max: 127 }
+  - name: play_voice_5
+    description: "Play voice 5 at a pitch (channel 6): give the note number, 60 is the voice's own pitch"
+    type: note_on
+    parametric: true
+    channel: 6
+    value: { type: range, min: 1, max: 127 }
+  - name: play_voice_6
+    description: "Play voice 6 at a pitch (channel 7): give the note number, 60 is the voice's own pitch"
+    type: note_on
+    parametric: true
+    channel: 7
+    value: { type: range, min: 1, max: 127 }
+  - name: play_voice_7
+    description: "Play voice 7 at a pitch (channel 8): give the note number, 60 is the voice's own pitch"
+    type: note_on
+    parametric: true
+    channel: 8
+    value: { type: range, min: 1, max: 127 }
+  - name: play_voice_8
+    description: "Play voice 8 at a pitch (channel 9): give the note number, 60 is the voice's own pitch"
+    type: note_on
+    parametric: true
+    channel: 9
+    value: { type: range, min: 1, max: 127 }
+  - name: sequencer_toggle
+    description: "Start the sequencer if it stands, stop it if it runs"
+    type: note_on
+    cc: 0
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: sequencer_play
+    description: "Let the sequencer play; it follows the host's transport again"
+    type: note_on
+    cc: 1
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: sequencer_stop
+    description: "Stop the sequencer; it then ignores the host's transport until sequencer_play"
+    type: note_on
+    cc: 2
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: mute_1
+    description: "Toggle the mute of voice 1"
+    type: note_on
+    cc: 12
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: mute_2
+    description: "Toggle the mute of voice 2"
+    type: note_on
+    cc: 13
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: mute_3
+    description: "Toggle the mute of voice 3"
+    type: note_on
+    cc: 14
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: mute_4
+    description: "Toggle the mute of voice 4"
+    type: note_on
+    cc: 15
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: mute_5
+    description: "Toggle the mute of voice 5"
+    type: note_on
+    cc: 16
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: mute_6
+    description: "Toggle the mute of voice 6"
+    type: note_on
+    cc: 17
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: mute_7
+    description: "Toggle the mute of voice 7"
+    type: note_on
+    cc: 18
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: mute_8
+    description: "Toggle the mute of voice 8"
+    type: note_on
+    cc: 19
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: solo_1
+    description: "Toggle the solo of voice 1"
+    type: note_on
+    cc: 24
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: solo_2
+    description: "Toggle the solo of voice 2"
+    type: note_on
+    cc: 25
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: solo_3
+    description: "Toggle the solo of voice 3"
+    type: note_on
+    cc: 26
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: solo_4
+    description: "Toggle the solo of voice 4"
+    type: note_on
+    cc: 27
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: solo_5
+    description: "Toggle the solo of voice 5"
+    type: note_on
+    cc: 28
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: solo_6
+    description: "Toggle the solo of voice 6"
+    type: note_on
+    cc: 29
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: solo_7
+    description: "Toggle the solo of voice 7"
+    type: note_on
     cc: 30
-    value: { type: range, min: 0, max: 127 }
-  - name: mix
-    description: Dry/wet mix (convention CC)
-    type: cc
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: solo_8
+    description: "Toggle the solo of voice 8"
+    type: note_on
     cc: 31
-    value: { type: range, min: 0, max: 127 }
-  - name: rate
-    description: LFO rate (convention CC)
-    type: cc
-    cc: 32
-    value: { type: range, min: 0, max: 127 }
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: choke_1
+    description: "Choke voice 1"
+    type: note_on
+    cc: 60
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: choke_2
+    description: "Choke voice 2"
+    type: note_on
+    cc: 61
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: choke_3
+    description: "Choke voice 3"
+    type: note_on
+    cc: 62
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: choke_4
+    description: "Choke voice 4"
+    type: note_on
+    cc: 63
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: choke_5
+    description: "Choke voice 5"
+    type: note_on
+    cc: 64
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: choke_6
+    description: "Choke voice 6"
+    type: note_on
+    cc: 65
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: choke_7
+    description: "Choke voice 7"
+    type: note_on
+    cc: 66
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: choke_8
+    description: "Choke voice 8"
+    type: note_on
+    cc: 67
+    channel: 10
+    value: { type: range, min: 1, max: 127 }
+  - name: preset_previous
+    description: "Load the previous preset"
+    type: note_on
+    cc: 0
+    channel: 11
+    value: { type: range, min: 1, max: 127 }
+  - name: preset_next
+    description: "Load the next preset"
+    type: note_on
+    cc: 1
+    channel: 11
+    value: { type: range, min: 1, max: 127 }
+  - name: preset_random
+    description: "Load a random preset"
+    type: note_on
+    cc: 2
+    channel: 11
+    value: { type: range, min: 1, max: 127 }
+  - name: randomize_all
+    description: "Randomise every parameter"
+    type: note_on
+    cc: 3
+    channel: 11
+    value: { type: range, min: 1, max: 127 }
+  - name: performance_randomize
+    description: "Randomise the Performance page"
+    type: note_on
+    cc: 12
+    channel: 11
+    value: { type: range, min: 1, max: 127 }
+  - name: performance_reset
+    description: "Reset the Performance page"
+    type: note_on
+    cc: 13
+    channel: 11
+    value: { type: range, min: 1, max: 127 }
+  - name: performance_commit
+    description: "Write what the Performance page does into the voices and reset it"
+    type: note_on
+    cc: 14
+    channel: 11
+    value: { type: range, min: 1, max: 127 }
+  - name: randomize_voice_1
+    description: "Randomise voice 1"
+    type: note_on
+    cc: 24
+    channel: 11
+    value: { type: range, min: 1, max: 127 }
+  - name: randomize_voice_2
+    description: "Randomise voice 2"
+    type: note_on
+    cc: 25
+    channel: 11
+    value: { type: range, min: 1, max: 127 }
+  - name: randomize_voice_3
+    description: "Randomise voice 3"
+    type: note_on
+    cc: 26
+    channel: 11
+    value: { type: range, min: 1, max: 127 }
+  - name: randomize_voice_4
+    description: "Randomise voice 4"
+    type: note_on
+    cc: 27
+    channel: 11
+    value: { type: range, min: 1, max: 127 }
+  - name: randomize_voice_5
+    description: "Randomise voice 5"
+    type: note_on
+    cc: 28
+    channel: 11
+    value: { type: range, min: 1, max: 127 }
+  - name: randomize_voice_6
+    description: "Randomise voice 6"
+    type: note_on
+    cc: 29
+    channel: 11
+    value: { type: range, min: 1, max: 127 }
+  - name: randomize_voice_7
+    description: "Randomise voice 7"
+    type: note_on
+    cc: 30
+    channel: 11
+    value: { type: range, min: 1, max: 127 }
+  - name: randomize_voice_8
+    description: "Randomise voice 8"
+    type: note_on
+    cc: 31
+    channel: 11
+    value: { type: range, min: 1, max: 127 }
