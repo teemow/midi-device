@@ -46,7 +46,7 @@ func LoadBundled() (*Registry, error) {
 // files. A device type with an ID that already exists replaces the bundled one.
 //
 // A single malformed or invalid user device type is skipped (logged) rather than
-// aborting the load, so one bad file in the config dir cannot gate the daemon
+// aborting the load, so one bad file in the config dir cannot gate the server
 // from coming up — consistent with the serve-first startup model. Only a
 // directory-level read error (other than "not exist") is returned.
 func (r *Registry) LoadDir(dir string) error {
@@ -111,7 +111,7 @@ func (r *Registry) add(b []byte, src string) error {
 }
 
 // AddDefinition validates and inserts (or replaces) a device type in the
-// registry so an authored device type hot-loads without a daemon restart. The
+// registry so an authored device type hot-loads without a server restart. The
 // device type must have an id.
 func (r *Registry) AddDefinition(d *DeviceType) error {
 	if d == nil {

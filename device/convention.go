@@ -61,7 +61,7 @@ func ConventionTransportCC(target string) (int, bool) {
 const TapControlChannel = 16
 
 // SessionSwitchChannel is the reserved 1-based MIDI channel for cross-session
-// Session Load Program Changes: the daemon's session-switch registry pins one
+// Session Load Program Changes: the server's session-switch registry pins one
 // PC program per staged session, and the user hand-maps AUM's global "Session
 // Load" actions (never stored in the .aumproj) to PCs on this channel. It
 // shares channel 16 with the tap toggles deliberately — taps are CCs, session

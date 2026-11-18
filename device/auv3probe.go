@@ -8,8 +8,8 @@ import (
 	"github.com/teemow/midi-device/device/sanitize"
 )
 
-// This file turns an AUv3 parameter-tree dump (produced by the off-daemon
-// cmd/auv3-probe utility, see docs/research/auv3-feedback.md) into a device
+// This file turns an AUv3 parameter-tree dump (produced by the stagebox app and staged by
+// roadie, see roadie's docs/research/auv3-feedback.md) into a device
 // DeviceType draft and diffs a dump against an existing device type. Because AUM
 // does not echo MIDI, the parameter tree is the only truth-source for verifying
 // that a plugin's YAML is correct and covers the plugin's maximum controllable
@@ -130,7 +130,7 @@ type ProbeDump struct {
 	ComponentIcon []byte `json:"componentIcon,omitempty"`
 }
 
-// ProbeID derives the device-type/file id for a dump. The off-daemon receiver
+// ProbeID derives the device-type/file id for a dump. roadie's receiver
 // names staged dumps <ProbeID>.json so import_auv3_probe and
 // DeviceTypeFromProbe agree on the id.
 //
@@ -143,7 +143,7 @@ type ProbeDump struct {
 // name. The two forms never meet: ComponentID always holds exactly two "-",
 // the sanitized form none.
 //
-// The auv3-probe app mirrors this in AudioUnitDetails.fileID; the two must
+// The stagebox app mirrors this in AudioUnitDetails.fileID; the two must
 // change together.
 func ProbeID(dump ProbeDump) string {
 	if dump.Component.Type != "" {

@@ -205,7 +205,7 @@ func TestDeviceTypeFromProbeMacroCollapse(t *testing.T) {
 	}
 }
 
-// probeIDVectors pins ProbeID for a handful of components. The auv3-probe app
+// probeIDVectors pins ProbeID for a handful of components. The stagebox app
 // mirrors ProbeID in AudioUnitDetails.fileID and tests the same vectors, so a
 // change here must land there too.
 var probeIDVectors = []struct {
