@@ -1,7 +1,7 @@
 # midi-device
 
 Declarative device models for MIDI/USB control surfaces and effects. This is the
-kernel extracted from [mcp-midi-controller](https://github.com/teemow/mcp-midi-controller):
+kernel extracted from [roadie](https://github.com/teemow/roadie):
 a device-type registry, the bundled device definitions (Behringer X32, AUv3
 plugins, USB editor devices), and the USB editor/readback wire codecs.
 
