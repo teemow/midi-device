@@ -203,6 +203,7 @@ func TestStateEntryKind(t *testing.T) {
 		StateKindInt:        {Int: &i},
 		StateKindFloat:      {Float: ptr(float32(1))},
 		StateKindDouble:     {Double: ptr(1.0)},
+		StateKindArchive:    {Archive: "YnBsaXN0MDA="},
 	}
 	for want, e := range cases {
 		if got := e.Kind(); got != want {
@@ -385,6 +386,75 @@ func TestFloatStateYAMLRoundTripIsExact(t *testing.T) {
 		if g := back["d"].Double; g == nil || math.Float64bits(*g) != math.Float64bits(d) {
 			t.Fatalf("double %v came back as %v from %s", d, g, out)
 		}
+	}
+}
+
+// sunrizerPatch stands for a nested value's archive, as aum.EncodeAuStateValue
+// writes it: a binary plist (this package only checks its magic).
+var sunrizerPatch = ArchivedValue("bplist00\xd4\x01\x02\x03\x04patch")
+
+// TestArchivedStateValue keeps a nested value as its archive: classified,
+// stored in YAML and JSON, and resolved back to the same ArchivedValue, which
+// StateValues hands on as a typed value, never as bytes.
+func TestArchivedStateValue(t *testing.T) {
+	vals := map[string]any{
+		"instrument": sunrizerPatch,
+		"data":       []byte{0, 0, 0, 0, 0xff},
+		"nested":     map[string]any{"name": "not archived"},
+	}
+	entries, left := ClassifyStateValues(vals)
+	if !slices.Equal(left, []string{"nested"}) {
+		t.Fatalf("left = %v, want only the value not archived", left)
+	}
+	e := entries["instrument"]
+	if e.Kind() != StateKindArchive || !e.IsValue() || e.Archive != base64.StdEncoding.EncodeToString(sunrizerPatch) {
+		t.Fatalf("instrument entry = %+v (%s)", e, e.Kind())
+	}
+	if _, err := e.Bytes(); err == nil {
+		t.Error("Bytes of an archive should fail: it is not bytes the plugin reads")
+	}
+
+	def := AUv3DefaultState{Component: ProbeComponent{Type: "aumu", Subtype: "bpsn", Manufacturer: "BPST"}, Name: "BPST: Sunrizer", State: entries}
+	if err := def.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for name, codec := range map[string]struct {
+		marshal   func(any) ([]byte, error)
+		unmarshal func([]byte, any) error
+	}{"yaml": {yaml.Marshal, yaml.Unmarshal}, "json": {json.Marshal, json.Unmarshal}} {
+		out, err := codec.marshal(def)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var back AUv3DefaultState
+		if err := codec.unmarshal(out, &back); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		got, err := back.StateValues()
+		if err != nil {
+			t.Fatalf("%s: StateValues: %v", name, err)
+		}
+		if a, ok := got["instrument"].(ArchivedValue); !ok || !bytes.Equal(a, sunrizerPatch) {
+			t.Fatalf("%s: instrument resolved to %#v", name, got["instrument"])
+		}
+		doc, err := back.StateDoc()
+		if err != nil || len(doc) != 1 || !bytes.Equal(doc["data"], vals["data"].([]byte)) {
+			t.Fatalf("%s: StateDoc = %v (%v), want the data key alone", name, doc, err)
+		}
+	}
+
+	bad := map[string]StateEntry{
+		"not base64":     {Archive: "%%%"},
+		"not a plist":    {Archive: base64.StdEncoding.EncodeToString([]byte("plain bytes"))},
+		"archive+string": {Archive: e.Archive, String: ptr("x")},
+	}
+	for name, b := range bad {
+		if _, err := b.Value(); err == nil {
+			t.Errorf("%s: Value accepted %+v", name, b)
+		}
+	}
+	if _, err := NewStateValue(ArchivedValue("plain bytes")); err == nil {
+		t.Error("NewStateValue took an archived value that is not a binary plist")
 	}
 }
 

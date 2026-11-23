@@ -19,8 +19,11 @@ import (
 // round-tripped, so it is stored base64. Many plugins also keep settings as
 // typed values beside (or instead of) a blob: numbers, switches and strings,
 // such as DigiStix's volume, power and preset_name next to its seq bytes. Those
-// are stored as the typed value itself. Capture classifies each fullState leaf
-// into the richest round-trip-safe encoding via ClassifyStateValues.
+// are stored as the typed value itself. Some keep their whole patch in
+// dictionaries and arrays nested in the state (Beepstreet's Sunrizer and
+// Drambo under "instrument"); such a value is stored as an archive of its own.
+// Capture classifies each fullState leaf into the richest round-trip-safe
+// encoding via ClassifyStateValues.
 
 // AUv3DefaultState is one audio unit's user-defined default fullState. It is
 // matched to a session node by the component tuple (type+subtype+manufacturer);
@@ -51,6 +54,10 @@ type AUv3DefaultState struct {
 //   - Int: an integer.
 //   - Float: a 32-bit real, the Float most plugins store their settings as.
 //   - Double: a 64-bit real.
+//   - Archive: a nested value, dictionaries and arrays of the above, as the
+//     base64 of its own NSKeyedArchiver binary plist: the canonical encoding
+//     aum-session-go's aum.EncodeAuStateValue writes and aum.DecodeAuStateValue
+//     reads (Value returns it as an ArchivedValue).
 //
 // Exactly one of them is set (validated); an entry with none is an empty blob.
 // Prefix is only valid with Text. JSON and XML are stored as Text (they are
@@ -68,7 +75,18 @@ type StateEntry struct {
 	Int    *int64   `yaml:"int,omitempty" json:"int,omitempty"`
 	Float  *float32 `yaml:"float,omitempty" json:"float,omitempty"`
 	Double *float64 `yaml:"double,omitempty" json:"double,omitempty"`
+
+	Archive string `yaml:"archive,omitempty" json:"archive,omitempty"`
 }
+
+// ArchivedValue is a nested saved-state value, a dictionary or an array, as
+// its own NSKeyedArchiver binary plist (aum.EncodeAuStateValue). It is a typed
+// value, never bytes the plugin reads: a session writer decodes it
+// (aum.DecodeAuStateValue) and writes the value it holds.
+type ArchivedValue []byte
+
+// archiveMagic starts every binary plist.
+const archiveMagic = "bplist00"
 
 // The encodings an entry can have, as Kind names them.
 const (
@@ -80,6 +98,7 @@ const (
 	StateKindInt        = "int"
 	StateKindFloat      = "float"
 	StateKindDouble     = "double"
+	StateKindArchive    = "archive"
 )
 
 // kinds lists the encodings an entry sets, in field order. Text and Prefix
@@ -110,6 +129,9 @@ func (e StateEntry) kinds() []string {
 	if e.Double != nil {
 		out = append(out, StateKindDouble)
 	}
+	if e.Archive != "" {
+		out = append(out, StateKindArchive)
+	}
 	return out
 }
 
@@ -125,7 +147,7 @@ func (e StateEntry) Kind() string {
 
 // IsValue reports whether the entry holds a typed value rather than bytes.
 func (e StateEntry) IsValue() bool {
-	return e.String != nil || e.Bool != nil || e.Int != nil || e.Float != nil || e.Double != nil
+	return e.String != nil || e.Bool != nil || e.Int != nil || e.Float != nil || e.Double != nil || e.Archive != ""
 }
 
 // check validates that the entry uses at most one encoding.
@@ -168,8 +190,9 @@ func (e StateEntry) Bytes() ([]byte, error) {
 }
 
 // Value resolves an entry that holds a typed value to that value: a string,
-// bool, int64, float32 or float64, the types aum.NodeSpec.StateValues takes.
-// An entry holding bytes has no typed value: see Bytes.
+// bool, int64, float32 or float64, the types aum.NodeSpec.StateValues takes,
+// or an ArchivedValue, which the session writer decodes first. An entry
+// holding bytes has no typed value: see Bytes.
 func (e StateEntry) Value() (any, error) {
 	if err := e.check(); err != nil {
 		return nil, err
@@ -191,16 +214,31 @@ func (e StateEntry) Value() (any, error) {
 			return nil, fmt.Errorf("state entry double is not finite (%v)", f)
 		}
 		return *e.Double, nil
+	case e.Archive != "":
+		b, err := base64.StdEncoding.DecodeString(e.Archive)
+		if err != nil {
+			return nil, fmt.Errorf("state entry archive: %w", err)
+		}
+		if !hasPrefix(b, archiveMagic) {
+			return nil, fmt.Errorf("state entry archive is not a binary plist")
+		}
+		return ArchivedValue(b), nil
 	}
 	return nil, fmt.Errorf("state entry holds %s bytes, not a typed value", e.Kind())
 }
 
 // NewStateValue is the entry holding a typed value: a string, bool, integer
 // or finite real, as a session decodes them (int64 and uint64 for integers,
-// float32 and float64 for reals). Other values, such as nested dictionaries
-// and lists or an integer beyond int64, have no entry and return an error.
+// float32 and float64 for reals), or a nested value as an ArchivedValue.
+// Other values, such as a nested dictionary not yet archived or an integer
+// beyond int64, have no entry and return an error.
 func NewStateValue(v any) (StateEntry, error) {
 	switch x := v.(type) {
+	case ArchivedValue:
+		if !hasPrefix(x, archiveMagic) {
+			return StateEntry{}, fmt.Errorf("an archived value is not a binary plist")
+		}
+		return StateEntry{Archive: base64.StdEncoding.EncodeToString(x)}, nil
 	case string:
 		return StateEntry{String: &x}, nil
 	case bool:
@@ -324,10 +362,11 @@ func (d AUv3DefaultState) Validate() error {
 // ClassifyStateValues turns a harvested fullState (key -> value, as a session
 // decodes it: bytes or a typed value) into a map of StateEntry. Bytes are
 // classified as ClassifyStateDoc classifies them; strings, switches, integers
-// and reals are kept as the typed value (NewStateValue). left are the keys
-// whose values no entry can hold, sorted: nested dictionaries and lists, and
-// numbers a session cannot write (an integer beyond int64, a real that is not
-// finite).
+// and reals are kept as the typed value (NewStateValue), and so is a nested
+// value the caller archived first (an ArchivedValue). left are the keys whose
+// values no entry can hold, sorted: nested dictionaries and lists not archived,
+// and numbers a session cannot write (an integer beyond int64, a real that is
+// not finite).
 func ClassifyStateValues(vals map[string]any) (entries map[string]StateEntry, left []string) {
 	entries = make(map[string]StateEntry, len(vals))
 	for k, v := range vals {
